@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Học từ vựng cùng bé Bút Bi</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <div class="user-line" id="userLine">👤 Chưa đăng nhập</div>
+        <h1>⭐ Học từ vựng cùng bé Bút Bi</h1>
+      </div>
+      <button id="logoutBtn" class="ghost hidden">Đăng xuất</button>
+    </header>
+
+    <main>
+      <section id="authView" class="card auth-card">
+        <h2>Đăng nhập</h2>
+        <p class="muted">Dữ liệu lưu theo tài khoản, mở trên Chrome hoặc thiết bị khác vẫn còn.</p>
+        <label>Email</label>
+        <input id="emailInput" type="email" placeholder="email@gmail.com" autocomplete="email" />
+        <label>Mật khẩu</label>
+        <input id="passwordInput" type="password" placeholder="Ít nhất 6 ký tự" autocomplete="current-password" />
+        <div class="row gap">
+          <button id="loginBtn">Đăng nhập</button>
+          <button id="registerBtn" class="soft">Tạo tài khoản</button>
+        </div>
+        <div id="authMsg" class="msg"></div>
+      </section>
+
+      <section id="mainView" class="hidden">
+        <nav class="tabs">
+          <button class="tab active" data-tab="folders">📁 Folder</button>
+          <button class="tab" data-tab="quiz">🎲 Quiz</button>
+          <button class="tab" data-tab="blank">✏️ Điền chỗ trống</button>
+        </nav>
+
+        <section id="foldersTab" class="tab-panel">
+          <div class="card">
+            <h2>📁 Folder từ vựng</h2>
+            <div class="add-line">
+              <input id="folderName" placeholder="Nhập tên folder, ví dụ: Unit 1 - Animals" />
+              <button id="addFolderBtn">+ Tạo folder</button>
+            </div>
+            <div id="folderList" class="folder-list"></div>
+          </div>
+
+          <div id="wordsCard" class="card hidden">
+            <div class="row between wrap">
+              <h2 id="currentFolderTitle">Từ vựng</h2>
+              <button id="deleteFolderBtn" class="danger">🗑️ Xoá folder</button>
+            </div>
+            <div class="grid-form">
+              <input id="wordInput" placeholder="Từ vựng English" />
+              <input id="meaningInput" placeholder="Nghĩa tiếng Việt" />
+              <textarea id="exampleInput" placeholder="Câu ví dụ có chứa từ vựng"></textarea>
+              <button id="addWordBtn">+ Thêm từ</button>
+            </div>
+            <div id="wordList" class="word-list"></div>
+          </div>
+        </section>
+
+        <section id="quizTab" class="tab-panel hidden">
+          <div class="card">
+            <h2>🎲 Quiz xáo trộn tất cả folder</h2>
+            <p class="muted">Chọn nghĩa đúng cho từ tiếng Anh.</p>
+            <button id="startQuizBtn">Bắt đầu / Xáo trộn lại</button>
+            <div id="quizBox" class="quiz-box"></div>
+          </div>
+        </section>
+
+        <section id="blankTab" class="tab-panel hidden">
+          <div class="card">
+            <h2>✏️ Điền vào chỗ trống</h2>
+            <p class="muted">App lấy câu ví dụ, ẩn từ vựng thành gạch ngang để bé điền.</p>
+            <button id="startBlankBtn">Bắt đầu / Câu khác</button>
+            <div id="blankBox" class="quiz-box"></div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
