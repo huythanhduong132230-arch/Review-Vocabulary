@@ -1,6 +1,6 @@
 // Dùng cho GitHub + Supabase + Vercel.
 // Vào Supabase > Project Settings > API, copy Project URL và anon public key dán vào đây.
-const SUPABASE_URL = "jkjoaejxixghbeaqnqyp.supabase.co";
+const SUPABASE_URL = "https://jkjoaejxixghbeaqnqyp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_WqGMTw31uZfAfDnHLaMTrQ_9eklpNKg";
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
