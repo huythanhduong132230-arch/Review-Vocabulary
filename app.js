@@ -1,290 +1,116 @@
 // Dùng cho GitHub + Supabase + Vercel.
-// Vào Supabase > Project Settings > API, copy Project URL và anon public key dán vào đây.
+// Dán Project URL và Publishable key của Supabase vào 2 dòng dưới.
 const SUPABASE_URL = "https://jkjoaejxixghbeaqnqyp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_WqGMTw31uZfAfDnHLaMTrQ_9eklpNKg";
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 const $ = (id) => document.getElementById(id);
-const state = {
-  user: null,
-  folders: [],
-  wordsByFolder: {},
-  currentFolderId: null,
-  allWords: [],
-  quiz: null,
-  blank: null,
-  channel: null
-};
 
-function escapeHtml(s = "") {
-  return String(s).replace(/[&<>"']/g, c => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-  }[c]));
+const state = { user:null, words:[], folders:[], currentFolder:"Tất cả", quiz:null, blank:null, sentence:null, flash:null };
+function msg(t){ $("authMsg").textContent=t||""; }
+function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));}
+function shuffle(a){return [...a].sort(()=>Math.random()-0.5)}
+function okConfig(){return SUPABASE_URL.startsWith("https://") && SUPABASE_ANON_KEY.length>20}
+
+async function signIn(){
+  if(!okConfig()) return msg("Bạn cần dán SUPABASE_URL và SUPABASE_ANON_KEY đúng trước.");
+  const email=$("emailInput").value.trim(), password=$("passwordInput").value;
+  const {error}=await supabase.auth.signInWithPassword({email,password});
+  if(error) msg("Lỗi đăng nhập: "+error.message);
 }
-function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
-function showMsg(text) { $("authMsg").textContent = text || ""; }
-
-function checkConfig() {
-  const ok = SUPABASE_URL.startsWith("https://") && SUPABASE_ANON_KEY.length > 20;
-  if (!ok) showMsg("Bạn cần dán SUPABASE_URL và SUPABASE_ANON_KEY trong app.js trước khi dùng.");
-  return ok;
+async function signUp(){
+  if(!okConfig()) return msg("Bạn cần dán SUPABASE_URL và SUPABASE_ANON_KEY đúng trước.");
+  const email=$("emailInput").value.trim(), password=$("passwordInput").value;
+  const {error}=await supabase.auth.signUp({email,password});
+  if(error) msg("Lỗi tạo tài khoản: "+error.message); else msg("Đã tạo tài khoản. Nếu Supabase tắt Confirm email thì bấm Đăng nhập luôn.");
 }
+async function signOut(){ await supabase.auth.signOut(); }
 
-async function fetchPhonetic(word) {
-  try {
-    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.trim())}`);
-    if (!res.ok) return "";
-    const data = await res.json();
-    return data?.[0]?.phonetic || data?.[0]?.phonetics?.find(x => x.text)?.text || "";
-  } catch { return ""; }
+supabase.auth.onAuthStateChange((_e,session)=>setUser(session?.user||null));
+async function init(){ const {data}=await supabase.auth.getSession(); setUser(data.session?.user||null); bind(); }
+function setUser(user){
+  state.user=user;
+  $("authView").classList.toggle("hidden",!!user); $("mainView").classList.toggle("hidden",!user); $("logoutBtn").classList.toggle("hidden",!user);
+  $("userLine").textContent=user?"👤 "+user.email:"👤 Chưa đăng nhập";
+  if(user) loadData();
 }
 
-function speak(word) {
-  const u = new SpeechSynthesisUtterance(word);
-  u.lang = "en-US";
-  u.rate = 0.85;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+function bind(){
+  $("loginBtn").onclick=signIn; $("registerBtn").onclick=signUp; $("logoutBtn").onclick=signOut;
+  $("saveWordBtn").onclick=saveWord; $("clearFormBtn").onclick=clearForm;
+  $("startQuizBtn").onclick=startQuiz; $("startBlankBtn").onclick=startBlank; $("newSentenceBtn").onclick=newSentence; $("newFlashcardBtn").onclick=newFlashcard;
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 }
-window.speakWord = speak;
-
-$("loginBtn").onclick = async () => {
-  if (!checkConfig()) return;
-  showMsg("");
-  const email = $("emailInput").value.trim();
-  const password = $("passwordInput").value;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) showMsg("Không đăng nhập được: " + error.message);
-};
-
-$("registerBtn").onclick = async () => {
-  if (!checkConfig()) return;
-  showMsg("");
-  const email = $("emailInput").value.trim();
-  const password = $("passwordInput").value;
-  const { error } = await supabase.auth.signUp({ email, password });
-  if (error) showMsg("Không tạo được tài khoản: " + error.message);
-  else showMsg("Đã tạo tài khoản. Nếu Supabase yêu cầu xác nhận email, hãy vào email bấm xác nhận rồi đăng nhập.");
-};
-
-$("logoutBtn").onclick = async () => {
-  await supabase.auth.signOut();
-};
-
-supabase.auth.onAuthStateChange((_event, session) => {
-  setUser(session?.user || null);
-});
-
-async function init() {
-  checkConfig();
-  const { data } = await supabase.auth.getSession();
-  setUser(data?.session?.user || null);
+function showTab(name){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
+  ["vocab","flashcard","quiz","sentence","blank"].forEach(t=>$(t+"Tab").classList.toggle("hidden",t!==name));
 }
+
+async function loadData(){
+  const {data:folders,error:fErr}=await supabase.from("folders").select("*").eq("user_id",state.user.id).order("created_at",{ascending:false});
+  if(fErr){ alert("Lỗi tải folder: "+fErr.message); return; }
+  const {data:words,error:wErr}=await supabase.from("words").select("*").eq("user_id",state.user.id).order("created_at",{ascending:false});
+  if(wErr){ alert("Lỗi tải dữ liệu: "+wErr.message); return; }
+  state.foldersRaw=folders||[];
+  state.words=(words||[]).map(w=>({...w, folderName:(state.foldersRaw.find(f=>f.id===w.folder_id)?.name)||"Chưa phân loại"}));
+  state.folders=["Tất cả",...state.foldersRaw.map(f=>f.name)];
+  if(!state.folders.includes(state.currentFolder)) state.currentFolder="Tất cả";
+  renderFolders(); renderWords();
+}
+function renderFolders(){
+  $("folderList").innerHTML=state.folders.map(f=>{
+    const count=f==="Tất cả"?state.words.length:state.words.filter(w=>w.folderName===f).length;
+    return `<button class="folder-chip ${f===state.currentFolder?'active':''}" data-folder="${esc(f)}">${esc(f)} <span class="count">${count}</span></button>`
+  }).join("");
+  document.querySelectorAll(".folder-chip").forEach(b=>b.onclick=()=>{state.currentFolder=b.dataset.folder;renderFolders();renderWords();});
+  $("wordCount").textContent=state.words.length+" từ";
+}
+function getVisible(){return state.currentFolder==="Tất cả"?state.words:state.words.filter(w=>w.folderName===state.currentFolder)}
+function renderWords(){
+  const words=getVisible();
+  if(!words.length){$("wordList").innerHTML=`<div class="example">Chưa có từ trong folder này.</div>`;return;}
+  $("wordList").innerHTML=words.map(w=>`<article class="word-card">
+    <div class="word-head"><div><span class="emoji">${esc(w.emoji||"🌸")}</span> <span class="word-en">${esc(w.word)}</span></div><button class="delete-word" data-del="${w.id}">Xoá</button></div>
+    <div class="phonetic">${esc(w.phonetic||"")}</div>
+    <div class="meaning">${esc(w.meaning)}</div>
+    <div class="pill">${esc(w.folderName)}</div>
+    ${w.example?`<div class="example">${esc(w.example)}</div>`:""}
+    ${w.example_vi?`<div class="example-vi">${esc(w.example_vi)}</div>`:""}
+    <div class="mini-actions"><button data-say="${esc(w.word)}">🔊 Nghe</button></div>
+  </article>`).join("");
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(confirm("Xoá từ này?")){await supabase.from("words").delete().eq("id",b.dataset.del);loadData();}});
+  document.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>speak(b.dataset.say));
+}
+
+async function fetchPhonetic(word){
+  try{const r=await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`); if(!r.ok)return""; const d=await r.json(); return d?.[0]?.phonetic||d?.[0]?.phonetics?.find(p=>p.text)?.text||"";}catch{return"";}
+}
+async function saveWord(){
+  const word=$("wordInput").value.trim(); const meaning=$("meaningInput").value.trim();
+  const folderName=($("folderName").value.trim()||"Chưa phân loại");
+  if(!word||!meaning) return alert("Bạn cần nhập từ tiếng Anh và nghĩa tiếng Việt.");
+
+  let folder=state.foldersRaw?.find(f=>f.name.toLowerCase()===folderName.toLowerCase());
+  if(!folder){
+    const {data,error}=await supabase.from("folders").insert({user_id:state.user.id,name:folderName}).select().single();
+    if(error) return alert("Lỗi tạo folder: "+error.message);
+    folder=data;
+  }
+
+  const phonetic=await fetchPhonetic(word);
+  const payload={user_id:state.user.id, folder_id:folder.id, word, meaning, emoji:$("emojiInput").value.trim()||"🌸", example:$("exampleInput").value.trim(), example_vi:$("exampleViInput").value.trim(), phonetic};
+  const {error}=await supabase.from("words").insert(payload);
+  if(error) return alert("Lỗi lưu từ: "+error.message+"\nNếu báo thiếu column emoji/example_vi, hãy chạy file supabase-update.sql.");
+  clearForm(); loadData();
+}
+function clearForm(){["wordInput","meaningInput","emojiInput","folderName","exampleInput","exampleViInput"].forEach(id=>$(id).value="");}
+function speak(text){const u=new SpeechSynthesisUtterance(text);u.lang="en-US";speechSynthesis.speak(u)}
+function wordsReady(){ if(!state.words.length){alert("Bạn cần thêm từ trước."); return false;} return true; }
+function pick(){return shuffle(state.words)[0]}
+function newFlashcard(){ if(!wordsReady())return; const w=pick(); state.flash=w; $("flashcardBox").innerHTML=`<div class="emoji">${esc(w.emoji||"🌸")}</div><div class="big-word">${esc(w.word)}</div><div class="phonetic">${esc(w.phonetic||"")}</div><button onclick="document.getElementById('flashAns').classList.toggle('hidden')">Xem nghĩa</button><div id="flashAns" class="meaning hidden">${esc(w.meaning)}</div>`; }
+function startQuiz(){ if(state.words.length<2)return alert("Cần ít nhất 2 từ để làm quiz."); const w=pick(); const choices=shuffle([w.meaning,...shuffle(state.words.filter(x=>x.id!==w.id)).slice(0,3).map(x=>x.meaning)]); $("quizBox").innerHTML=`<div class="big-word">${esc(w.word)}</div><div class="choices">${choices.map(c=>`<button data-choice="${esc(c)}">${esc(c)}</button>`).join("")}</div><div id="quizResult" class="result"></div>`; document.querySelectorAll("[data-choice]").forEach(b=>b.onclick=()=>{$("quizResult").textContent=b.dataset.choice===w.meaning?"✅ Đúng rồi!":"❌ Chưa đúng. Đáp án: "+w.meaning});}
+function startBlank(){ const list=state.words.filter(w=>w.example); if(!list.length)return alert("Cần có câu ví dụ trước."); const w=shuffle(list)[0]; const re=new RegExp(w.word,"ig"); const blank=w.example.replace(re,"________"); $("blankBox").innerHTML=`<div class="example">${esc(blank)}</div><input id="blankAnswer" class="blank-input" placeholder="Điền từ còn thiếu"/><button id="checkBlankBtn">Kiểm tra</button><div id="blankResult" class="result"></div>`; $("checkBlankBtn").onclick=()=>{$("blankResult").textContent=$("blankAnswer").value.trim().toLowerCase()===w.word.toLowerCase()?"✅ Đúng rồi!":"❌ Đáp án: "+w.word};}
+function newSentence(){ const list=state.words.filter(w=>w.example && w.example.split(/\s+/).length>3); if(!list.length)return alert("Cần câu ví dụ dài hơn để ghép câu."); const w=shuffle(list)[0]; const tokens=shuffle(w.example.replace(/[.!?]/g,"").split(/\s+/)); $("sentenceBox").innerHTML=`<div class="meaning">Nghĩa: ${esc(w.example_vi||w.meaning)}</div><div class="token-wrap">${tokens.map(t=>`<span class="token">${esc(t)}</span>`).join("")}</div><p style="margin-top:16px">Bé đọc các từ rồi tự sắp xếp lại thành câu đúng.</p><div class="example">Đáp án: ${esc(w.example)}</div>`;}
+
 init();
-
-async function setUser(user) {
-  state.user = user;
-  $("authView").classList.toggle("hidden", !!user);
-  $("mainView").classList.toggle("hidden", !user);
-  $("logoutBtn").classList.toggle("hidden", !user);
-  $("userLine").textContent = user ? `👤 ${user.email}` : "👤 Chưa đăng nhập";
-
-  if (state.channel) {
-    await supabase.removeChannel(state.channel);
-    state.channel = null;
-  }
-  state.folders = [];
-  state.wordsByFolder = {};
-  state.allWords = [];
-  state.currentFolderId = null;
-  renderFolders();
-  renderWords();
-
-  if (user) {
-    await loadAllData();
-    subscribeRealtime();
-  }
-}
-
-async function loadAllData() {
-  const { data: folders, error: fError } = await supabase
-    .from("folders")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (fError) return alert("Lỗi tải folder: " + fError.message);
-
-  const { data: words, error: wError } = await supabase
-    .from("words")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (wError) return alert("Lỗi tải từ vựng: " + wError.message);
-
-  state.folders = folders || [];
-  state.wordsByFolder = {};
-  (words || []).forEach(w => {
-    if (!state.wordsByFolder[w.folder_id]) state.wordsByFolder[w.folder_id] = [];
-    state.wordsByFolder[w.folder_id].push(w);
-  });
-  refreshAllWords();
-  renderFolders();
-  renderWords();
-}
-
-function subscribeRealtime() {
-  state.channel = supabase
-    .channel("butbi-vocab-changes")
-    .on("postgres_changes", { event: "*", schema: "public", table: "folders" }, loadAllData)
-    .on("postgres_changes", { event: "*", schema: "public", table: "words" }, loadAllData)
-    .subscribe();
-}
-
-function refreshAllWords() {
-  state.allWords = Object.values(state.wordsByFolder).flat();
-}
-
-$("addFolderBtn").onclick = async () => {
-  const name = $("folderName").value.trim();
-  if (!name) return;
-  const { error } = await supabase.from("folders").insert({ name, user_id: state.user.id });
-  if (error) return alert("Không tạo được folder: " + error.message);
-  $("folderName").value = "";
-  await loadAllData();
-};
-
-$("deleteFolderBtn").onclick = async () => {
-  if (!state.currentFolderId || !confirm("Xoá folder này và toàn bộ từ bên trong?")) return;
-  const { error } = await supabase.from("folders").delete().eq("id", state.currentFolderId);
-  if (error) return alert("Không xoá được folder: " + error.message);
-  state.currentFolderId = null;
-  $("wordsCard").classList.add("hidden");
-  await loadAllData();
-};
-
-$("addWordBtn").onclick = async () => {
-  const word = $("wordInput").value.trim();
-  const meaning = $("meaningInput").value.trim();
-  const example = $("exampleInput").value.trim();
-  if (!state.currentFolderId || !word || !meaning) return alert("Cần chọn folder, nhập từ vựng và nghĩa.");
-  const phonetic = await fetchPhonetic(word);
-  const { error } = await supabase.from("words").insert({
-    user_id: state.user.id,
-    folder_id: state.currentFolderId,
-    word,
-    meaning,
-    example,
-    phonetic
-  });
-  if (error) return alert("Không thêm được từ: " + error.message);
-  $("wordInput").value = "";
-  $("meaningInput").value = "";
-  $("exampleInput").value = "";
-  await loadAllData();
-};
-
-function renderFolders() {
-  const box = $("folderList");
-  if (!box) return;
-  box.innerHTML = state.folders.map(f => `
-    <div class="folder-item ${f.id === state.currentFolderId ? "active" : ""}" data-id="${f.id}">
-      📁 ${escapeHtml(f.name)}
-      <span class="folder-count">${(state.wordsByFolder[f.id] || []).length} từ</span>
-    </div>
-  `).join("") || '<p class="muted">Chưa có folder.</p>';
-
-  document.querySelectorAll(".folder-item").forEach(el => {
-    el.onclick = () => {
-      state.currentFolderId = el.dataset.id;
-      $("wordsCard").classList.remove("hidden");
-      renderFolders();
-      renderWords();
-    };
-  });
-}
-
-function renderWords() {
-  if (!state.currentFolderId) return;
-  const folder = state.folders.find(f => f.id === state.currentFolderId);
-  $("currentFolderTitle").textContent = `📘 ${folder?.name || "Từ vựng"}`;
-  const words = state.wordsByFolder[state.currentFolderId] || [];
-  $("wordList").innerHTML = words.map(w => `
-    <div class="word-card">
-      <div class="word-head">
-        <div>
-          <div class="word-title">${escapeHtml(w.word)} <span class="phonetic">${escapeHtml(w.phonetic || "")}</span></div>
-          <div class="meaning">${escapeHtml(w.meaning)}</div>
-        </div>
-        <div class="mini-actions">
-          <button data-say="${escapeHtml(w.word)}">🔊 Nghe</button>
-          <button class="danger" data-del="${w.id}">Xoá</button>
-        </div>
-      </div>
-      ${w.example ? `<div class="example">${escapeHtml(w.example)}</div>` : ""}
-    </div>
-  `).join("") || '<p class="muted">Chưa có từ vựng trong folder này.</p>';
-
-  document.querySelectorAll("[data-say]").forEach(b => b.onclick = () => speak(b.dataset.say));
-  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
-    const { error } = await supabase.from("words").delete().eq("id", b.dataset.del);
-    if (error) return alert("Không xoá được từ: " + error.message);
-    await loadAllData();
-  });
-}
-
-document.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
-  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
-  document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
-  $(`${btn.dataset.tab}Tab`).classList.remove("hidden");
-});
-
-$("startQuizBtn").onclick = () => {
-  const words = shuffle(state.allWords).filter(w => w.word && w.meaning);
-  if (words.length < 2) return $("quizBox").innerHTML = '<p class="muted">Cần ít nhất 2 từ để tạo quiz.</p>';
-  state.quiz = { words, index: 0, score: 0 };
-  renderQuiz();
-};
-
-function renderQuiz() {
-  const q = state.quiz;
-  const w = q.words[q.index];
-  const options = shuffle([w.meaning, ...shuffle(q.words.filter(x => x.id !== w.id)).slice(0, 3).map(x => x.meaning)]);
-  $("quizBox").innerHTML = `
-    <div class="question">${escapeHtml(w.word)} <button onclick="speakWord('${escapeHtml(w.word)}')">🔊</button></div>
-    <div class="options">${options.map(o => `<button class="option" data-answer="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}</div>
-    <div class="score">Câu ${q.index + 1}/${q.words.length} • Đúng ${q.score}</div>
-  `;
-  document.querySelectorAll("[data-answer]").forEach(b => b.onclick = () => {
-    const ok = b.dataset.answer === w.meaning;
-    b.classList.add(ok ? "ok" : "bad");
-    if (ok) q.score++;
-    setTimeout(() => {
-      q.index++;
-      if (q.index >= q.words.length) {
-        $("quizBox").innerHTML = `<div class="question">Hoàn thành 🎉</div><div class="score">Bé đúng ${q.score}/${q.words.length} câu.</div>`;
-      } else renderQuiz();
-    }, 650);
-  });
-}
-
-$("startBlankBtn").onclick = () => {
-  const words = shuffle(state.allWords).filter(w => w.word && w.example);
-  if (!words.length) return $("blankBox").innerHTML = '<p class="muted">Cần có từ vựng kèm câu ví dụ.</p>';
-  const w = words[0];
-  const re = new RegExp(`\\b${w.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "ig");
-  const blank = w.example.replace(re, "______");
-  state.blank = w;
-  $("blankBox").innerHTML = `
-    <div class="blank-sentence">${escapeHtml(blank)}</div>
-    <div class="answer-line"><input id="blankAnswer" placeholder="Bé điền từ vào đây"/><button id="checkBlankBtn">Kiểm tra</button></div>
-    <div id="blankResult" class="score"></div>
-  `;
-  $("checkBlankBtn").onclick = () => {
-    const ans = $("blankAnswer").value.trim().toLowerCase();
-    $("blankResult").textContent = ans === w.word.toLowerCase()
-      ? `Đúng rồi 🎉 ${w.word} ${w.phonetic || ""} = ${w.meaning}`
-      : `Chưa đúng. Đáp án: ${w.word} = ${w.meaning}`;
-  };
-};
