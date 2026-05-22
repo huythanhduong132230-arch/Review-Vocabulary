@@ -7,7 +7,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
 
-const state = { user:null, folders:[], words:[], currentFolder:null };
+const state = { user:null, folders:[], words:[], currentFolder:null, editWordId:null, sentenceAnswer:[] };
 function msg(t){ $("authMsg").textContent=t||""; }
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));}
 function shuffle(a){return [...a].sort(()=>Math.random()-0.5)}
@@ -104,13 +104,14 @@ function renderWords(){
   const words=currentWords();
   if(!words.length){$("wordList").innerHTML=`<div class="example">Chưa có từ trong folder này.</div>`;return;}
   $("wordList").innerHTML=words.map(w=>`<article class="word-card">
-    <div class="word-head"><div><span class="emoji">${esc(w.emoji||"🌸")}</span> <span class="word-en">${esc(w.word)}</span></div><button class="delete-word" data-del="${w.id}">Xoá</button></div>
+    <div class="word-head"><div><span class="emoji">${esc(w.emoji||"🌸")}</span> <span class="word-en">${esc(w.word)}</span></div><div class="word-actions"><button class="edit-word" data-edit="${w.id}">Sửa</button><button class="delete-word" data-del="${w.id}">Xoá</button></div></div>
     <div class="phonetic">${esc(w.phonetic||"")}</div>
     <div class="meaning">${esc(w.meaning)}</div>
     ${w.example?`<div class="example">${esc(w.example)}</div>`:""}
     ${w.example_vi?`<div class="example-vi">${esc(w.example_vi)}</div>`:""}
     <div class="mini-actions"><button data-say="${esc(w.word)}">🔊 Nghe phát âm</button></div>
   </article>`).join("");
+  document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editWord(b.dataset.edit));
   document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(confirm("Xoá từ này?")){await supabase.from("words").delete().eq("id",b.dataset.del);loadData();}});
   document.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>speak(b.dataset.say));
 }
@@ -123,17 +124,66 @@ async function saveWord(){
   if(!word||!meaning) return alert("Bạn cần nhập từ tiếng Anh và nghĩa tiếng Việt.");
   let phonetic=$("phoneticInput").value.trim(); if(!phonetic) phonetic=await fetchPhonetic(word);
   const payload={user_id:state.user.id, folder_id:state.currentFolder.id, word, meaning, emoji:$("emojiInput").value.trim()||"🌸", example:$("exampleInput").value.trim(), example_vi:$("exampleViInput").value.trim(), phonetic};
-  const {error}=await supabase.from("words").insert(payload);
+  let error;
+  if(state.editWordId){
+    ({error}=await supabase.from("words").update(payload).eq("id",state.editWordId).eq("user_id",state.user.id));
+  }else{
+    ({error}=await supabase.from("words").insert(payload));
+  }
   if(error) return alert("Lỗi lưu từ: "+error.message+"\nNếu báo thiếu column emoji/example_vi/phonetic, hãy chạy file supabase-update.sql.");
   clearForm(); loadData();
 }
-function clearForm(){["wordInput","meaningInput","emojiInput","phoneticInput","exampleInput","exampleViInput"].forEach(id=>$(id).value="");}
+function editWord(id){
+  const w=state.words.find(x=>x.id===id); if(!w) return;
+  state.editWordId=id;
+  $("wordInput").value=w.word||"";
+  $("meaningInput").value=w.meaning||"";
+  $("emojiInput").value=w.emoji||"";
+  $("phoneticInput").value=w.phonetic||"";
+  $("exampleInput").value=w.example||"";
+  $("exampleViInput").value=w.example_vi||"";
+  $("saveWordBtn").textContent="💾 Cập nhật từ";
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function clearForm(){["wordInput","meaningInput","emojiInput","phoneticInput","exampleInput","exampleViInput"].forEach(id=>$(id).value=""); state.editWordId=null; $("saveWordBtn").textContent="💾 Lưu từ";}
 function speak(text){const u=new SpeechSynthesisUtterance(text);u.lang="en-US";speechSynthesis.speak(u)}
 function wordsReady(min=1){ const w=currentWords(); if(w.length<min){alert(`Folder này cần ít nhất ${min} từ.`); return false;} return true; }
 function pick(){return shuffle(currentWords())[0]}
-function newFlashcard(){ if(!wordsReady())return; const w=pick(); $("flashcardBox").innerHTML=`<div class="emoji">${esc(w.emoji||"🌸")}</div><div class="big-word">${esc(w.word)}</div><div class="phonetic">${esc(w.phonetic||"")}</div><button onclick="document.getElementById('flashAns').classList.toggle('hidden')">Xem nghĩa</button><button onclick="speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance('${esc(w.word)}'),{lang:'en-US'}))">🔊 Nghe</button><div id="flashAns" class="meaning hidden">${esc(w.meaning)}</div>`; }
+function newFlashcard(){
+  if(!wordsReady())return;
+  const w=pick();
+  $("flashcardBox").innerHTML=`<div class="flip-card" id="flipCard">
+    <div class="flip-inner">
+      <div class="flip-front"><div class="emoji">${esc(w.emoji||"🌸")}</div><div class="big-word">${esc(w.word)}</div><div class="phonetic">${esc(w.phonetic||"")}</div><p>Bấm vào thẻ để xem nghĩa</p></div>
+      <div class="flip-back"><div class="meaning big-meaning">${esc(w.meaning)}</div>${w.example?`<div class="example">${esc(w.example)}</div>`:""}</div>
+    </div>
+  </div><div class="actions center-actions"><button id="sayFlashBtn" class="mint">🔊 Nghe phát âm</button><button id="nextFlashBtn" class="primary">Thẻ khác</button></div>`;
+  $("flipCard").onclick=()=>$("flipCard").classList.toggle("flipped");
+  $("sayFlashBtn").onclick=()=>speak(w.word);
+  $("nextFlashBtn").onclick=newFlashcard;
+}
 function startQuiz(){ if(!wordsReady(2))return; const words=currentWords(); const w=pick(); const wrong=shuffle(words.filter(x=>x.id!==w.id)).slice(0,3).map(x=>x.meaning); const choices=shuffle([w.meaning,...wrong]); $("quizBox").innerHTML=`<div class="big-word">${esc(w.word)}</div><div class="choices">${choices.map(c=>`<button data-choice="${esc(c)}">${esc(c)}</button>`).join("")}</div><div id="quizResult" class="result"></div>`; document.querySelectorAll("[data-choice]").forEach(b=>b.onclick=()=>{$("quizResult").textContent=b.dataset.choice===w.meaning?"✅ Đúng rồi!":"❌ Chưa đúng. Đáp án: "+w.meaning});}
 function startBlank(){ const list=currentWords().filter(w=>w.example); if(!list.length)return alert("Folder này cần có câu ví dụ trước."); const w=shuffle(list)[0]; const re=new RegExp(w.word,"ig"); const blank=w.example.replace(re,"________"); $("blankBox").innerHTML=`<div class="example">${esc(blank)}</div><input id="blankAnswer" class="blank-input" placeholder="Điền từ còn thiếu"/><button id="checkBlankBtn">Kiểm tra</button><div id="blankResult" class="result"></div>`; $("checkBlankBtn").onclick=()=>{$("blankResult").textContent=$("blankAnswer").value.trim().toLowerCase()===w.word.toLowerCase()?"✅ Đúng rồi!":"❌ Đáp án: "+w.word};}
-function newSentence(){ const list=currentWords().filter(w=>w.example && w.example.split(/\s+/).length>3); if(!list.length)return alert("Folder này cần câu ví dụ dài hơn để ghép câu."); const w=shuffle(list)[0]; const tokens=shuffle(w.example.replace(/[.!?]/g,"").split(/\s+/)); $("sentenceBox").innerHTML=`<div class="meaning">Nghĩa: ${esc(w.example_vi||w.meaning)}</div><div class="token-wrap">${tokens.map(t=>`<span class="token">${esc(t)}</span>`).join("")}</div><p style="margin-top:16px">Bé đọc các từ rồi tự sắp xếp lại thành câu đúng.</p><div class="example">Đáp án: ${esc(w.example)}</div>`;}
+function newSentence(){
+  const list=currentWords().filter(w=>w.example && w.example.split(/\s+/).length>3);
+  if(!list.length)return alert("Folder này cần câu ví dụ dài hơn để ghép câu.");
+  const w=shuffle(list)[0];
+  const clean=w.example.replace(/[.!?]/g,"");
+  const correct=clean.split(/\s+/);
+  state.sentenceAnswer=[];
+  const tokens=shuffle(correct.map((text,i)=>({text,id:i+"-"+Math.random()})));
+  $("sentenceBox").innerHTML=`<div class="meaning">Nghĩa: ${esc(w.example_vi||w.meaning)}</div>
+    <div id="sentenceAnswer" class="sentence-answer">Bấm các từ bên dưới để ghép câu...</div>
+    <div id="sentenceTokens" class="token-wrap">${tokens.map(t=>`<button class="token" data-token-id="${t.id}" data-token="${esc(t.text)}">${esc(t.text)}</button>`).join("")}</div>
+    <div class="actions center-actions"><button id="undoSentenceBtn" class="mint">↩️ Lùi 1 từ</button><button id="checkSentenceBtn" class="primary">Kiểm tra</button><button id="resetSentenceBtn" class="ghost">Làm lại</button></div>
+    <div id="sentenceResult" class="result"></div>`;
+  document.querySelectorAll("[data-token]").forEach(b=>b.onclick=()=>{state.sentenceAnswer.push(b.dataset.token); b.disabled=true; renderSentenceAnswer();});
+  $("undoSentenceBtn").onclick=()=>{ const last=state.sentenceAnswer.pop(); const btn=[...document.querySelectorAll("[data-token]")].reverse().find(x=>x.dataset.token===last && x.disabled); if(btn) btn.disabled=false; renderSentenceAnswer(); };
+  $("resetSentenceBtn").onclick=()=>newSentence();
+  $("checkSentenceBtn").onclick=()=>{ const ans=state.sentenceAnswer.join(" "); $("sentenceResult").textContent=ans===clean?"✅ Đúng rồi!":"❌ Chưa đúng, thử sắp xếp lại nhé."; if(ans!==clean){$("sentenceResult").innerHTML += `<div class="small-hint">Gợi ý: câu có ${correct.length} từ.</div>`;} };
+}
+function renderSentenceAnswer(){
+  $("sentenceAnswer").textContent=state.sentenceAnswer.length?state.sentenceAnswer.join(" "):"Bấm các từ bên dưới để ghép câu...";
+}
 
 init();
