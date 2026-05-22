@@ -164,7 +164,56 @@ function editWord(id){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function clearForm(){["wordInput","meaningInput","emojiInput","phoneticInput","exampleInput","exampleViInput"].forEach(id=>$(id).value=""); state.editWordId=null; $("saveWordBtn").textContent="💾 Lưu từ";}
-function speak(text){const u=new SpeechSynthesisUtterance(text);u.lang="en-US";speechSynthesis.speak(u)}
+const audioCache = new Map();
+
+async function getDictionaryAudio(word){
+  const key = String(word || "").trim().toLowerCase();
+  if(!key) return null;
+  if(audioCache.has(key)) return audioCache.get(key);
+  try{
+    const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(key)}`);
+    if(!r.ok){ audioCache.set(key, null); return null; }
+    const data = await r.json();
+    const phonetics = data?.[0]?.phonetics || [];
+    const audios = phonetics
+      .map(p => p.audio)
+      .filter(Boolean)
+      .map(url => url.startsWith('//') ? 'https:' + url : url);
+    const us = audios.find(url => /-us\.|us\.mp3|\/us\//i.test(url));
+    const uk = audios.find(url => /-uk\.|uk\.mp3|\/uk\//i.test(url));
+    const chosen = us || uk || audios[0] || null;
+    audioCache.set(key, chosen);
+    return chosen;
+  }catch(e){
+    audioCache.set(key, null);
+    return null;
+  }
+}
+
+function fallbackSpeak(text){
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US";
+  u.rate = 0.85;
+  u.pitch = 1;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+async function speak(text){
+  const audioUrl = await getDictionaryAudio(text);
+  if(audioUrl){
+    try{
+      const a = new Audio(audioUrl);
+      a.playbackRate = 0.95;
+      await a.play();
+      return;
+    }catch(e){
+      fallbackSpeak(text);
+      return;
+    }
+  }
+  fallbackSpeak(text);
+}
 function wordsReady(min=1){ const w=currentWords(); if(w.length<min){alert(`Folder này cần ít nhất ${min} từ.`); return false;} return true; }
 function pick(){return shuffle(currentWords())[0]}
 function newFlashcard(){
