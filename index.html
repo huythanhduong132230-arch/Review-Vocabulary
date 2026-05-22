@@ -8,6 +8,7 @@
 </head>
 <body>
   <div class="top-sync">☁ Dữ liệu đồng bộ mọi thiết bị</div>
+
   <div class="app-shell">
     <header class="app-header">
       <div>
@@ -32,77 +33,100 @@
     </section>
 
     <main id="mainView" class="hidden">
-      <nav class="nav-tabs">
-        <button class="tab active" data-tab="vocab"><span>📚</span>Từ vựng</button>
-        <button class="tab" data-tab="flashcard"><span>🃏</span>Flashcard</button>
-        <button class="tab" data-tab="quiz"><span>🎯</span>Quiz</button>
-        <button class="tab" data-tab="sentence"><span>✏️</span>Ghép câu</button>
-        <button class="tab" data-tab="blank"><span>🔤</span>Điền từ</button>
-      </nav>
+      <section id="folderHomeView" class="panel">
+        <div class="section-title">
+          <h2>📁 Danh sách folder</h2>
+          <span id="totalFolderCount" class="pill">0 folder</span>
+        </div>
+        <div class="folder-create">
+          <input id="newFolderInput" placeholder="Nhập tên folder, ví dụ: Unit 1 - Animals" />
+          <button id="createFolderBtn" class="primary">+ Thêm folder</button>
+        </div>
+        <div id="homeFolderList" class="home-folder-list"></div>
+      </section>
 
-      <section id="vocabTab" class="tab-panel">
-        <div class="panel">
-          <h2>✚ Thêm từ mới</h2>
-          <div class="word-form">
-            <div class="field"><label>Từ tiếng Anh *</label><input id="wordInput" placeholder="e.g. beautiful" /></div>
-            <div class="field"><label>Nghĩa tiếng Việt *</label><input id="meaningInput" placeholder="e.g. xinh đẹp" /></div>
-            <div class="field"><label>Emoji 🌼</label><input id="emojiInput" placeholder="🌸" /></div>
-            <div class="field"><label>Bài học / Folder</label><input id="folderName" placeholder="e.g. Bài 3" /></div>
-            <div class="field full"><label>Câu ví dụ tiếng Anh</label><textarea id="exampleInput" placeholder="e.g. She is very beautiful."></textarea></div>
-            <div class="field full"><label>Dịch nghĩa câu ví dụ</label><input id="exampleViInput" placeholder="e.g. Cô ấy rất xinh đẹp." /></div>
+      <section id="folderDetailView" class="hidden">
+        <div class="folder-detail-head">
+          <button id="backToFoldersBtn" class="ghost">← Danh sách folder</button>
+          <div>
+            <h2 id="currentFolderTitle">Folder</h2>
+            <p id="currentFolderMeta">0 từ</p>
           </div>
-          <div class="actions">
-            <button id="saveWordBtn" class="primary">💾 Lưu từ</button>
-            <button id="clearFormBtn" class="mint">🔄 Xoá form</button>
+          <button id="deleteFolderBtn" class="danger">🗑 Xoá folder</button>
+        </div>
+
+        <nav class="nav-tabs">
+          <button class="tab active" data-tab="vocab"><span>📚</span>Từ vựng</button>
+          <button class="tab" data-tab="flashcard"><span>🃏</span>Flashcard</button>
+          <button class="tab" data-tab="quiz"><span>🎯</span>Quiz</button>
+          <button class="tab" data-tab="sentence"><span>✏️</span>Ghép câu</button>
+          <button class="tab" data-tab="blank"><span>🔤</span>Điền từ</button>
+        </nav>
+
+        <section id="vocabTab" class="tab-panel">
+          <div class="panel">
+            <h2>✚ Thêm từ mới</h2>
+            <div class="word-form">
+              <div class="field"><label>Từ tiếng Anh *</label><input id="wordInput" placeholder="e.g. beautiful" /></div>
+              <div class="field"><label>Nghĩa tiếng Việt *</label><input id="meaningInput" placeholder="e.g. xinh đẹp" /></div>
+              <div class="field"><label>Emoji 🌼</label><input id="emojiInput" placeholder="🌸" /></div>
+              <div class="field"><label>Phiên âm</label><input id="phoneticInput" placeholder="Tự lấy nếu có" /></div>
+              <div class="field full"><label>Câu ví dụ tiếng Anh</label><textarea id="exampleInput" placeholder="e.g. She is very beautiful."></textarea></div>
+              <div class="field full"><label>Dịch nghĩa câu ví dụ</label><input id="exampleViInput" placeholder="e.g. Cô ấy rất xinh đẹp." /></div>
+            </div>
+            <div class="actions">
+              <button id="saveWordBtn" class="primary">💾 Lưu từ</button>
+              <button id="clearFormBtn" class="mint">🔄 Xoá form</button>
+            </div>
           </div>
-        </div>
 
-        <div class="panel">
-          <div class="section-title">
-            <h2>📁 Folder từ vựng</h2>
-            <span id="wordCount" class="pill">0 từ</span>
+          <div class="panel">
+            <div class="section-title">
+              <h2>📚 Từ vựng trong folder</h2>
+              <span id="wordCount" class="pill">0 từ</span>
+            </div>
+            <div id="wordList" class="word-list"></div>
           </div>
-          <div id="folderList" class="folder-list"></div>
-          <div id="wordList" class="word-list"></div>
-        </div>
-      </section>
+        </section>
 
-      <section id="flashcardTab" class="tab-panel hidden">
-        <div class="panel center-panel">
-          <h2>🃏 Flashcard</h2>
-          <button id="newFlashcardBtn" class="primary">Lấy thẻ mới</button>
-          <div id="flashcardBox" class="study-box"></div>
-        </div>
-      </section>
+        <section id="flashcardTab" class="tab-panel hidden">
+          <div class="panel center-panel">
+            <h2>🃏 Flashcard</h2>
+            <button id="newFlashcardBtn" class="primary">Lấy thẻ mới</button>
+            <div id="flashcardBox" class="study-box"></div>
+          </div>
+        </section>
 
-      <section id="quizTab" class="tab-panel hidden">
-        <div class="panel center-panel">
-          <h2>🎯 Quiz xáo trộn tất cả folder</h2>
-          <p>Chọn nghĩa đúng cho từ tiếng Anh.</p>
-          <button id="startQuizBtn" class="primary">Bắt đầu / Xáo trộn lại</button>
-          <div id="quizBox" class="study-box"></div>
-        </div>
-      </section>
+        <section id="quizTab" class="tab-panel hidden">
+          <div class="panel center-panel">
+            <h2>🎯 Quiz trong folder</h2>
+            <p>Chọn nghĩa đúng cho từ tiếng Anh.</p>
+            <button id="startQuizBtn" class="primary">Bắt đầu / Xáo trộn lại</button>
+            <div id="quizBox" class="study-box"></div>
+          </div>
+        </section>
 
-      <section id="sentenceTab" class="tab-panel hidden">
-        <div class="panel center-panel">
-          <h2>✏️ Ghép câu</h2>
-          <p>Sắp xếp các từ bị xáo trộn thành câu ví dụ đúng.</p>
-          <button id="newSentenceBtn" class="primary">Câu mới</button>
-          <div id="sentenceBox" class="study-box"></div>
-        </div>
-      </section>
+        <section id="sentenceTab" class="tab-panel hidden">
+          <div class="panel center-panel">
+            <h2>✏️ Ghép câu</h2>
+            <p>Sắp xếp các từ bị xáo trộn thành câu ví dụ đúng.</p>
+            <button id="newSentenceBtn" class="primary">Câu mới</button>
+            <div id="sentenceBox" class="study-box"></div>
+          </div>
+        </section>
 
-      <section id="blankTab" class="tab-panel hidden">
-        <div class="panel center-panel">
-          <h2>🔤 Điền từ</h2>
-          <p>App ẩn từ vựng trong câu ví dụ để bé điền.</p>
-          <button id="startBlankBtn" class="primary">Bắt đầu / Câu khác</button>
-          <div id="blankBox" class="study-box"></div>
-        </div>
+        <section id="blankTab" class="tab-panel hidden">
+          <div class="panel center-panel">
+            <h2>🔤 Điền từ</h2>
+            <p>App ẩn từ vựng trong câu ví dụ để bé điền.</p>
+            <button id="startBlankBtn" class="primary">Bắt đầu / Câu khác</button>
+            <div id="blankBox" class="study-box"></div>
+          </div>
+        </section>
       </section>
     </main>
   </div>
+
   <script type="module" src="./app.js"></script>
 </body>
 </html>
