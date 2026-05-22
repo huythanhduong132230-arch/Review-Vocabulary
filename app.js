@@ -38,7 +38,7 @@ function setUser(user){
 function bind(){
   $("loginBtn").onclick=signIn; $("registerBtn").onclick=signUp; $("logoutBtn").onclick=signOut;
   $("createFolderBtn").onclick=createFolder; $("newFolderInput").onkeydown=e=>{if(e.key==="Enter")createFolder();};
-  $("backToFoldersBtn").onclick=showFolderHome; $("deleteFolderBtn").onclick=deleteCurrentFolder;
+  $("backToFoldersBtn").onclick=showFolderHome; $("editFolderBtn").onclick=editCurrentFolder; $("deleteFolderBtn").onclick=deleteCurrentFolder;
   $("saveWordBtn").onclick=saveWord; $("clearFormBtn").onclick=clearForm;
   $("startQuizBtn").onclick=startQuiz; $("startBlankBtn").onclick=startBlank; $("newSentenceBtn").onclick=newSentence; $("newFlashcardBtn").onclick=newFlashcard;
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
@@ -91,6 +91,24 @@ async function createFolder(){
   if(error) return alert("Lỗi tạo folder: "+error.message);
   $("newFolderInput").value=""; await loadData(); openFolder(data.id);
 }
+async function editCurrentFolder(){
+  if(!state.currentFolder) return;
+  const oldName = state.currentFolder.name || "";
+  const name = prompt("Nhập tên folder mới:", oldName);
+  if(name === null) return;
+  const newName = name.trim();
+  if(!newName) return alert("Tên folder không được để trống.");
+  if(newName === oldName) return;
+  const {error} = await supabase
+    .from("folders")
+    .update({name:newName})
+    .eq("id", state.currentFolder.id)
+    .eq("user_id", state.user.id);
+  if(error) return alert("Lỗi sửa folder: "+error.message);
+  state.currentFolder = {...state.currentFolder, name:newName};
+  await loadData();
+}
+
 async function deleteCurrentFolder(){
   if(!state.currentFolder) return;
   if(!confirm("Xoá folder này và toàn bộ từ trong folder?")) return;
